@@ -16,6 +16,12 @@ function easeInCubic(start, end, value){
 	return (((end * value) * value) * value) + start;
 }
 
+function easeOutCubic(start, end, value){
+	value = clamp(value, 0, 1) - 1;
+	end -= start;
+	return (end * (((value * value) * value) + 1)) + start;
+}
+
 
 //
 //	Panel
@@ -103,19 +109,20 @@ Object.defineProperty(Panel.prototype, "height", {
 
 Panel.prototype.moveBy = function(mx) {
 	var halfScreenWidth = window.innerWidth * 0.5
-	var halfPanelWidth = self.width * 0.5;
+	var halfPanelWidth = this.width * 0.5;
 
-	var minX = -(self.width * 0.5);
+	var minX = -(this.width * 0.5);
 	var maxX = window.innerWidth - halfPanelWidth;
 
 	//	set the x position
 	//
 	this.x = clamp(this.x + mx, minX, maxX);
 	
-	//  rotate
+	//  rotate and scale
 	//
 	var pivot = this.x + halfPanelWidth;
 	var margin = window.innerWidth * 0.125;
+	var minScale = 0.5;
 
 	if (pivot > halfScreenWidth) {
 		var magnitude = 1 - (window.innerWidth - margin - pivot) / halfScreenWidth;
@@ -126,45 +133,49 @@ Panel.prototype.moveBy = function(mx) {
 		var rotY = easeInCubic(0, 90, magnitude);
 	}
 
-	this.element.style.transform = "rotateY(" + rotY + "deg)";
+	var scale = easeInCubic(1, minScale, magnitude);
+
+	this.element.style.transform = "scale(" + scale + ") rotateY(" + rotY + "deg)";
 }
 
 Panel.prototype.snap = function(){
-	var self = this;
+	var self = this; // (need this inside requestanimationframe callback)
 
 	// TODO when we have stacks, snap to nearest stack position
 
-	// snap to center //
+	//
+	// snap to center
+	//
 	var pivot = this.x + this.width * 0.5;
 	var distance = Math.abs( window.innerWidth * 0.5 - pivot );
 	var threshold = window.innerWidth * 0.25;
 
-	var speed = window.innerWidth / 4000;
-	var duration = distance / speed;
-	var t = 0;
-	var startX = this.x;
-	var endX = window.innerWidth * 0.5 - this.width * 0.5;
+	if (distance <= threshold) {
 
-	var now = performance.now() || Date.now();
+		var speed = window.innerWidth / 4000;
+		var duration = distance / speed;
+		var t = 0;
+		var startX = this.x;
+		var endX = window.innerWidth * 0.5 - this.width * 0.5;
 
-	// TODO XXX what happens if a resize occurs during this little adventure?
-	var update = function(ts){
-		var dt = Math.min(ts - now, 100);
-		now = ts;
+		var now = performance.now() || Date.now();
 
-		t += dt;
-		var progress = t / duration;
-		var x = easeInCubic( startX, endX, progress );
+		// TODO XXX what happens if a resize occurs during this little adventure?
+		var update = function(ts){
+			var dt = Math.min(ts - now, 100);
+			now = ts;
 
-		self.moveBy( x - self.x );  // a `moveTo` might be more straightforward here
+			t += dt;
+			var progress = t / duration;
+			var x = easeInCubic( startX, endX, progress );
 
-		if (progress < 1) {
-			requestAnimationFrame( update );
+			self.moveBy( x - self.x );  // a `moveTo` might be more straightforward here
+
+			if (progress < 1) {
+				requestAnimationFrame( update );
+			}
 		}
 
-	}
-
-	if (distance <= threshold) {
 		requestAnimationFrame( update );
 	}
 }
